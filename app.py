@@ -8,12 +8,12 @@ import re
 st.set_page_config(page_title="PTT 全方位輿情觀測站", page_icon="🕵️‍♂️", layout="centered")
 
 st.title("🕵️‍♂️ PTT 輿情多板聯合觀測")
-st.caption("Mentat 輿情哨兵 - PTT 跨板自動檢索版 v8.0")
+st.caption("Mentat 輿情哨兵 - PTT 跨板自動檢索版 v8.1")
 
-# 這裡預設鎖定組織最關心的核心看板，你可以自由增減
-BOARDS = ["Gossiping", "HatePolitics", "Lifeismoney", "Keelung", "Tech_Job"]
+# 納入國營版（Gov_own-bus）後的目標看板清單
+BOARDS = ["Gossiping", "Gov_owned", "HatePolitics", "Lifeismoney", "Keelung", "Tech_Job"]
 
-# 建立填寫欄位（已移除看板下拉選單）
+# 建立填寫欄位
 keywords = st.text_input("請輸入關鍵字（空格=且，例如：基隆 台電）", "台電")
 hours = st.slider("請選擇時間範圍（過去幾小時內）", min_value=1, max_value=72, value=24)
 
@@ -46,7 +46,7 @@ if st.button("🚀 開始全板檢索 PTT 輿情", type="primary"):
         progress_bar.progress((idx) / len(BOARDS))
         
         current_url = f"https://www.ptt.cc/bbs/{board_code}/index.html"
-        max_pages = 5 # 多板聯搜時，每板往回爬5頁即足夠涵蓋近期時段，避免過久
+        max_pages = 5 
         stop_crawling = False
         
         for page in range(max_pages):
@@ -74,7 +74,7 @@ if st.button("🚀 開始全板檢索 PTT 輿情", type="primary"):
                         title = link_match.group(2).strip()
                         author = author_match.group(1).strip() if author_match else "未知"
                         
-                        # 先初步過濾關鍵字
+                        # 初步過濾關鍵字
                         if all(word.lower() in title.lower() for word in check_words):
                             # 點進內文抓取精確時間
                             try:
@@ -95,7 +95,6 @@ if st.button("🚀 開始全板檢索 PTT 輿情", type="primary"):
                                                 "文章連結": post_url
                                             })
                                         else:
-                                            # 該板已遇到過舊文章，停止該板搜尋
                                             stop_crawling = True
                                             break
                             except Exception:
@@ -116,10 +115,9 @@ if st.button("🚀 開始全板檢索 PTT 輿情", type="primary"):
     # 顯示結果
     if all_posts:
         df = pd.DataFrame(all_posts)
-        # 跨板混合後，統一依照時間由新到舊排序
         df = df.sort_values(by="發布時間", ascending=False)
         
-        st.success(f"採集成功！過去 {hours} 小時內在各看板中共發現 {len(df)} 則符合條件的討論。")
+        st.success(f"採集成功！過去 {hours} 小時內共發現 {len(df)} 則符合條件的討論。")
         st.dataframe(df, use_container_width=True)
         
         csv_data = df.to_csv(index=False).encode('utf-8-sig')
