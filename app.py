@@ -6,10 +6,10 @@ from datetime import datetime, timedelta
 import urllib.parse
 
 # 網頁基本設定
-st.set_page_config(page_title="社群平台監測 u272260 V4", page_icon="📱", layout="centered")
+st.set_page_config(page_title="社群平台監測系統 V9", page_icon="📱", layout="centered")
 
 st.title("社群平台監測")
-st.caption("版本：u272260 V4 (Streamlit 雲端網頁版)")
+st.caption("版本：V9 (Streamlit 雲端網頁分流優化版)")
 
 # 關鍵字說明區塊
 with st.expander("ℹ️ 關鍵字與語法說明（點擊展開）", expanded=True):
@@ -19,11 +19,8 @@ with st.expander("ℹ️ 關鍵字與語法說明（點擊展開）", expanded=T
     """)
 
 # 介面輸入欄位
-platform = st.selectbox("搜尋平台:", ["全部", "PTT", "Threads(停用)", "Dcard"])
-
+platform = st.selectbox("搜尋平台:", ["全部", "PTT", "Dcard"])
 kw_input = st.text_input("請輸入搜尋關鍵字:", value="基隆 台電, 停電")
-
-# 時間選擇
 hours_val = st.number_input("回溯小時:", min_value=1, max_value=720, value=24, step=1)
 
 if st.button("執行抓取並產出 CSV", type="primary"):
@@ -33,24 +30,24 @@ if st.button("執行抓取並產出 CSV", type="primary"):
         # 拆解關鍵字組
         search_groups = [g.strip() for g in kw_input.replace('，', ',').split(',') if g.strip()]
         all_news = []
-        limit = datetime.now() - timedelta(hours=int(hours_val))
+        limit = datetime.utcnow() - timedelta(hours=int(hours_val)) # 雲端主機統一採用 UTC 時間比對
         
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
         
-        # 【優化機制】如果選全部，後端自動輪流跑完三個平台，解決 Google RSS 的語法衝突限制
+        # 決定要跑哪些平台（分流處理，規避 Google 語法限制）
         if platform == "全部":
-            target_platforms = ["site:ptt.cc", "site:threads.net", "site:dcard.tw"]
+            target_platforms = ["site:ptt.cc", "site:dcard.tw"]
+        elif platform == "PTT":
+            target_platforms = ["site:ptt.cc"]
         else:
-            p_map = {"PTT": "site:ptt.cc", "Threads": "site:threads.net", "Dcard": "site:dcard.tw"}
-            target_platforms = [p_map[platform]]
+            target_platforms = ["site:dcard.tw"]
         
-        with st.spinner("社群資料檢索中..."):
+        with st.spinner("雲端精準檢索中..."):
             for group in search_groups:
                 query_str = group.replace(' ', ' AND ')
                 
-                # 雙層迴圈：確保每個平台都各自獨立向 Google 查詢，絕不漏失
                 for site_q in target_platforms:
                     try:
                         full_query = f"{query_str} {site_q}"
@@ -66,17 +63,23 @@ if st.button("執行抓取並產出 CSV", type="primary"):
 
                             for item in tree.findall('.//item'):
                                 pub_date_str = item.find('pubDate').text
-                                dt = datetime.strptime(pub_date_str, '%a, %d %b %Y %H:%M:%S %Z')
+                                clean_date_str = pub_date_str.replace(' GMT', '')
+                                dt = datetime.strptime(clean_date_str, '%a, %d %b %Y %H:%M:%S')
                                 
                                 if dt > limit:
                                     title = item.find('title').text if item.find('title') is not None else "無標題"
                                     link = item.find('link').text if item.find('link') is not None else ""
+                                    
+                                    # 確保是原生社群連結，過濾媒體抄寫
+                                    if not any(domain in link for domain in ['ptt.cc', 'dcard.tw']):
+                                        continue
+                                        
                                     tw_time = (dt + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M')
                                     
                                     all_news.append({
                                         "關鍵字組合": group,
-                                        "標題": title,
-                                        "時間": tw_time,
+                                        "標題/討論串": title,
+                                        "時間(台灣)": tw_time,
                                         "連結": link
                                     })
                     except:
@@ -85,19 +88,18 @@ if st.button("執行抓取並產出 CSV", type="primary"):
         # 顯示結果與下載處理
         if all_news:
             df = pd.DataFrame(all_news)
-            # 以網址進行全網唯一去重，確保合併三大平台資料時不會有重複列
-            df = df.drop_duplicates(subset=["連結"])
+            df = df.drop_duplicates(subset=["連結"]) # 網址去重
             
-            st.success(f"執行成功！本次共抓取 {len(df)} 筆不重複社群輿情。")
+            st.success(f"執行成功！本次共抓取 {len(df)} 筆不重複社群討論資料。")
             st.dataframe(df, use_container_width=True)
             
             csv_data = df.to_csv(index=False).encode('utf-8-sig')
             
             st.download_button(
-                label="📥 下載社群報表 (CSV)",
+                label="📥 下載社群輿情報表 (CSV)",
                 data=csv_data,
-                file_name=f"社群追蹤_{datetime.now().strftime('%m%d%H%M')}.csv",
+                file_name=f"社群即時追蹤_{datetime.now().strftime('%m%d%H%M')}.csv",
                 mime='text/csv'
             )
         else:
-            st.info("提示：查無相關資料")
+            st.info("提示：此時間範圍內查無相關的社群討論貼文。")
