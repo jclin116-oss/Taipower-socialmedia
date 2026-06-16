@@ -9,7 +9,7 @@ import urllib.parse
 st.set_page_config(page_title="社群平台監測系統 V9", page_icon="📱", layout="centered")
 
 st.title("社群平台監測")
-st.caption("版本：V9 (Streamlit 雲端網頁分流優化版)")
+st.caption("版本：V9 (Streamlit 雲端網頁分流優化版..)")
 
 # 關鍵字說明區塊
 with st.expander("ℹ️ 關鍵字與語法說明（點擊展開）", expanded=True):
