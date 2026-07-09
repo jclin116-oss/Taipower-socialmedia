@@ -5,6 +5,7 @@ import pandas as pd
 
 st.set_page_config(page_title="PTT輿情", layout="wide")
 st.title("⚡PTT輿情")
+st.caption("115.6.15 u272260")
 
 # --- 操控區 ---
 st.sidebar.header("設定搜尋條件")
